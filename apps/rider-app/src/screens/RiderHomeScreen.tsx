@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
     ScrollView,
     StyleSheet,
@@ -7,7 +6,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { StatusBadge } from '../components/StatusBadge';
+import {
+    StatusBadge,
+    type StatusBadgeTone,
+} from '../components/StatusBadge';
+import { useDutyStatus } from '../features/duty-status/useDutyStatus';
 import { colors, radius, spacing } from '../theme/tokens';
 
 const summaryItems = [
@@ -26,10 +29,46 @@ const summaryItems = [
 ];
 
 export function RiderHomeScreen() {
-    const [isOnDuty, setIsOnDuty] = useState(false);
+    const {
+        isOnDuty,
+        isRestoring,
+        isSaving,
+        toggleDutyStatus,
+    } = useDutyStatus();
 
-    const statusLabel = isOnDuty ? '운행 중' : '운행 대기';
-    const statusTone = isOnDuty ? 'active' : 'inactive';
+    const isDutyStatusBusy = isRestoring || isSaving;
+
+    const statusLabel = isRestoring
+        ? '상태 확인 중'
+        : isOnDuty
+            ? '운행 중'
+            : '운행 대기';
+
+    const statusTone: StatusBadgeTone = isRestoring
+        ? 'neutral'
+        : isOnDuty
+            ? 'active'
+            : 'inactive';
+
+    const dispatchTitle = isRestoring
+        ? '운행 상태를 확인하고 있습니다'
+        : isOnDuty
+            ? '배차 요청 대기 중'
+            : '현재 운행을 쉬고 있습니다';
+
+    const dispatchDescription = isRestoring
+        ? '저장된 운행 상태를 불러오는 중입니다.'
+        : isOnDuty
+            ? '새로운 주문이 들어오면 바로 알려드릴게요.'
+            : '운행을 시작하면 주변 배차 요청을 받을 수 있습니다.';
+
+    const dutyButtonTitle = isRestoring
+        ? '운행 상태 확인 중'
+        : isSaving
+            ? '상태 저장 중'
+            : isOnDuty
+                ? '운행 종료'
+                : '운행 시작';
 
     return (
         <SafeAreaView
@@ -47,7 +86,10 @@ export function RiderHomeScreen() {
                         </Text>
                     </View>
 
-                    <StatusBadge label={statusLabel} tone={statusTone} />
+                    <StatusBadge
+                        label={statusLabel}
+                        tone={statusTone}
+                    />
                 </View>
 
                 <View style={styles.accountCard}>
@@ -66,9 +108,15 @@ export function RiderHomeScreen() {
 
                     <View style={styles.summaryRow}>
                         {summaryItems.map(item => (
-                            <View key={item.label} style={styles.summaryCard}>
-                                <Text style={styles.summaryLabel}>{item.label}</Text>
-                                <Text style={styles.summaryValue}>{item.value}</Text>
+                            <View
+                                key={item.label}
+                                style={styles.summaryCard}>
+                                <Text style={styles.summaryLabel}>
+                                    {item.label}
+                                </Text>
+                                <Text style={styles.summaryValue}>
+                                    {item.value}
+                                </Text>
                             </View>
                         ))}
                     </View>
@@ -77,53 +125,66 @@ export function RiderHomeScreen() {
                 <View style={styles.dispatchCard}>
                     <View style={styles.dispatchHeader}>
                         <View style={styles.dispatchIcon}>
-                            <Text style={styles.dispatchIconLabel}>D</Text>
+                            <Text style={styles.dispatchIconLabel}>
+                                D
+                            </Text>
                         </View>
 
                         <View style={styles.dispatchHeaderText}>
                             <Text style={styles.dispatchTitle}>
-                                {isOnDuty ? '배차 요청 대기 중' : '현재 운행을 쉬고 있습니다'}
+                                {dispatchTitle}
                             </Text>
                             <Text style={styles.dispatchDescription}>
-                                {isOnDuty
-                                    ? '새로운 주문이 들어오면 바로 알려드릴게요.'
-                                    : '운행을 시작하면 주변 배차 요청을 받을 수 있습니다.'}
+                                {dispatchDescription}
                             </Text>
                         </View>
                     </View>
 
                     <View style={styles.systemStatus}>
                         <View style={styles.systemStatusItem}>
-                            <Text style={styles.systemStatusLabel}>위치 전송</Text>
-                            <Text style={styles.systemStatusValue}>준비됨</Text>
+                            <Text style={styles.systemStatusLabel}>
+                                위치 전송
+                            </Text>
+                            <Text style={styles.systemStatusValue}>
+                                준비됨
+                            </Text>
                         </View>
 
                         <View style={styles.divider} />
 
                         <View style={styles.systemStatusItem}>
-                            <Text style={styles.systemStatusLabel}>배차 알림</Text>
-                            <Text style={styles.systemStatusValue}>허용됨</Text>
+                            <Text style={styles.systemStatusLabel}>
+                                배차 알림
+                            </Text>
+                            <Text style={styles.systemStatusValue}>
+                                허용됨
+                            </Text>
                         </View>
                     </View>
 
                     <PrimaryButton
-                        onPress={() => setIsOnDuty(current => !current)}
+                        disabled={isDutyStatusBusy}
+                        onPress={toggleDutyStatus}
                         testID="duty-toggle-button"
-                        title={isOnDuty ? '운행 종료' : '운행 시작'}
+                        title={dutyButtonTitle}
                     />
                 </View>
 
                 <View style={styles.noticeCard}>
-                    <Text style={styles.noticeTitle}>운행 전 확인</Text>
+                    <Text style={styles.noticeTitle}>
+                        운행 전 확인
+                    </Text>
                     <Text style={styles.noticeDescription}>
-                        위치 권한과 배터리 사용 설정을 확인하면 백그라운드에서도 배차
-                        상태를 안정적으로 유지할 수 있습니다.
+                        위치 권한과 배터리 사용 설정을 확인하면 백그라운드에서도
+                        배차 상태를 안정적으로 유지할 수 있습니다.
                     </Text>
                 </View>
 
-                <Text style={styles.syncText}>마지막 동기화 · 방금 전</Text>
+                <Text style={styles.syncText}>
+                    마지막 동기화 · 방금 전
+                </Text>
             </ScrollView>
-        </SafeAreaView >
+        </SafeAreaView>
     );
 }
 

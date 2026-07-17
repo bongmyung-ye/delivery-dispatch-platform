@@ -1,30 +1,37 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing } from '../theme/tokens';
 
+export type StatusBadgeTone =
+    | 'active'
+    | 'inactive'
+    | 'neutral';
+
 type StatusBadgeProps = {
     label: string;
-    tone: 'active' | 'inactive';
+    tone: StatusBadgeTone;
 };
 
-export function StatusBadge({ label, tone }: StatusBadgeProps) {
-    const isActive = tone === 'active';
-
+export function StatusBadge({
+    label,
+    tone,
+}: StatusBadgeProps) {
     return (
         <View
             style={[
                 styles.container,
-                isActive ? styles.activeContainer : styles.inactiveContainer,
+                containerStyles[tone],
             ]}>
             <View
                 style={[
                     styles.indicator,
-                    isActive ? styles.activeIndicator : styles.inactiveIndicator,
+                    indicatorStyles[tone],
                 ]}
             />
+
             <Text
                 style={[
                     styles.label,
-                    isActive ? styles.activeLabel : styles.inactiveLabel,
+                    labelStyles[tone],
                 ]}>
                 {label}
             </Text>
@@ -47,6 +54,9 @@ const styles = StyleSheet.create({
     inactiveContainer: {
         backgroundColor: colors.warningSoft,
     },
+    neutralContainer: {
+        backgroundColor: colors.neutralSoft,
+    },
     indicator: {
         borderRadius: radius.pill,
         height: 8,
@@ -58,6 +68,9 @@ const styles = StyleSheet.create({
     inactiveIndicator: {
         backgroundColor: colors.warning,
     },
+    neutralIndicator: {
+        backgroundColor: colors.neutral,
+    },
     label: {
         fontSize: 13,
         fontWeight: '700',
@@ -68,4 +81,25 @@ const styles = StyleSheet.create({
     inactiveLabel: {
         color: colors.warning,
     },
+    neutralLabel: {
+        color: colors.neutral,
+    },
 });
+
+const containerStyles = {
+    active: styles.activeContainer,
+    inactive: styles.inactiveContainer,
+    neutral: styles.neutralContainer,
+};
+
+const indicatorStyles = {
+    active: styles.activeIndicator,
+    inactive: styles.inactiveIndicator,
+    neutral: styles.neutralIndicator,
+};
+
+const labelStyles = {
+    active: styles.activeLabel,
+    inactive: styles.inactiveLabel,
+    neutral: styles.neutralLabel,
+};

@@ -4,22 +4,27 @@ import { colors, radius, spacing } from '../theme/tokens';
 type PrimaryButtonProps = {
     title: string;
     onPress: () => void;
+    disabled?: boolean;
     testID?: string;
 };
 
 export function PrimaryButton({
     title,
     onPress,
+    disabled = false,
     testID,
 }: PrimaryButtonProps) {
     return (
         <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled }}
+            disabled={disabled}
             onPress={onPress}
             testID={testID}
             style={({ pressed }) => [
                 styles.button,
-                pressed && styles.buttonPressed,
+                pressed && !disabled && styles.buttonPressed,
+                disabled && styles.buttonDisabled,
             ]}>
             <Text style={styles.label}>{title}</Text>
         </Pressable>
@@ -38,6 +43,9 @@ const styles = StyleSheet.create({
     },
     buttonPressed: {
         backgroundColor: colors.primaryPressed,
+    },
+    buttonDisabled: {
+        backgroundColor: colors.primaryDisabled,
     },
     label: {
         color: colors.surface,
