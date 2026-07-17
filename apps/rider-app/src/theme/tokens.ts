@@ -7,10 +7,13 @@ export const colors = {
     border: '#E5E7EB',
     primary: '#1D4ED8',
     primaryPressed: '#1E40AF',
+    primaryDisabled: '#93C5FD',
     success: '#15803D',
     successSoft: '#DCFCE7',
     warning: '#B45309',
     warningSoft: '#FEF3C7',
+    neutral: '#64748B',
+    neutralSoft: '#E2E8F0',
 } as const;
 
 export const spacing = {
