@@ -11,7 +11,17 @@ import {
     type StatusBadgeTone,
 } from '../components/StatusBadge';
 import { useDutyStatus } from '../features/duty-status/useDutyStatus';
+import {
+    RIDER_PERMISSION_STATUS,
+    type RiderPermissionStatus,
+} from '../features/permissions/riderPermissions';
+import { useRiderPermissions } from '../features/permissions/useRiderPermissions';
 import { colors, radius, spacing } from '../theme/tokens';
+
+type PermissionIndicator = {
+    label: string;
+    tone: 'granted' | 'warning' | 'neutral';
+};
 
 const summaryItems = [
     {
@@ -28,6 +38,66 @@ const summaryItems = [
     },
 ];
 
+function getLocationPermissionIndicator(
+    status: RiderPermissionStatus,
+): PermissionIndicator {
+    switch (status) {
+        case RIDER_PERMISSION_STATUS.granted:
+            return {
+                label: '정확한 위치',
+                tone: 'granted',
+            };
+        case RIDER_PERMISSION_STATUS.approximate:
+            return {
+                label: '근사 위치',
+                tone: 'warning',
+            };
+        case RIDER_PERMISSION_STATUS.blocked:
+            return {
+                label: '설정 필요',
+                tone: 'warning',
+            };
+        case RIDER_PERMISSION_STATUS.denied:
+            return {
+                label: '권한 필요',
+                tone: 'warning',
+            };
+        default:
+            return {
+                label: '확인 중',
+                tone: 'neutral',
+            };
+    }
+}
+
+function getNotificationPermissionIndicator(
+    status: RiderPermissionStatus,
+): PermissionIndicator {
+    switch (status) {
+        case RIDER_PERMISSION_STATUS.granted:
+            return {
+                label: '허용됨',
+                tone: 'granted',
+            };
+        case RIDER_PERMISSION_STATUS.blocked:
+            return {
+                label: '설정 필요',
+                tone: 'warning',
+            };
+        case RIDER_PERMISSION_STATUS.denied:
+        case RIDER_PERMISSION_STATUS.approximate:
+            return {
+                label: '권한 필요',
+                tone: 'warning',
+            };
+        default:
+            return {
+                label: '확인 중',
+                tone: 'neutral',
+            };
+    }
+}
+
 export function RiderHomeScreen() {
     const {
         isOnDuty,
@@ -36,7 +106,30 @@ export function RiderHomeScreen() {
         toggleDutyStatus,
     } = useDutyStatus();
 
+    const {
+        permissions,
+        permissionMessage,
+        hasRequiredPermissions,
+        isChecking,
+        isRequesting,
+        requestRequiredPermissions,
+    } = useRiderPermissions();
+
+    const locationPermission = getLocationPermissionIndicator(
+        permissions.location,
+    );
+
+    const notificationPermission =
+        getNotificationPermissionIndicator(
+            permissions.notifications,
+        );
+
     const isDutyStatusBusy = isRestoring || isSaving;
+    const isPermissionBusy = isChecking || isRequesting;
+
+    const isDutyActionBusy =
+        isDutyStatusBusy ||
+        (!isOnDuty && isPermissionBusy);
 
     const statusLabel = isRestoring
         ? '상태 확인 중'
@@ -66,9 +159,32 @@ export function RiderHomeScreen() {
         ? '운행 상태 확인 중'
         : isSaving
             ? '상태 저장 중'
-            : isOnDuty
-                ? '운행 종료'
-                : '운행 시작';
+            : !isOnDuty && isChecking
+                ? '권한 확인 중'
+                : !isOnDuty && isRequesting
+                    ? '권한 요청 중'
+                    : isOnDuty
+                        ? '운행 종료'
+                        : '운행 시작';
+
+    async function handleDutyToggle() {
+        if (isOnDuty) {
+            await toggleDutyStatus();
+            return;
+        }
+
+        if (hasRequiredPermissions) {
+            await toggleDutyStatus();
+            return;
+        }
+
+        const isGranted =
+            await requestRequiredPermissions();
+
+        if (isGranted) {
+            await toggleDutyStatus();
+        }
+    }
 
     return (
         <SafeAreaView
@@ -80,7 +196,9 @@ export function RiderHomeScreen() {
                 testID="rider-home-screen">
                 <View style={styles.header}>
                     <View>
-                        <Text style={styles.appName}>Dispatch Rider</Text>
+                        <Text style={styles.appName}>
+                            Dispatch Rider
+                        </Text>
                         <Text style={styles.headerDescription}>
                             오늘도 안전하게 운행하세요.
                         </Text>
@@ -94,17 +212,25 @@ export function RiderHomeScreen() {
 
                 <View style={styles.accountCard}>
                     <View style={styles.avatar}>
-                        <Text style={styles.avatarLabel}>D</Text>
+                        <Text style={styles.avatarLabel}>
+                            D
+                        </Text>
                     </View>
 
                     <View style={styles.accountContent}>
-                        <Text style={styles.accountName}>기사 계정</Text>
-                        <Text style={styles.accountArea}>대구 달서구</Text>
+                        <Text style={styles.accountName}>
+                            기사 계정
+                        </Text>
+                        <Text style={styles.accountArea}>
+                            대구 달서구
+                        </Text>
                     </View>
                 </View>
 
                 <View>
-                    <Text style={styles.sectionTitle}>오늘 운행</Text>
+                    <Text style={styles.sectionTitle}>
+                        오늘 운행
+                    </Text>
 
                     <View style={styles.summaryRow}>
                         {summaryItems.map(item => (
@@ -143,10 +269,17 @@ export function RiderHomeScreen() {
                     <View style={styles.systemStatus}>
                         <View style={styles.systemStatusItem}>
                             <Text style={styles.systemStatusLabel}>
-                                위치 전송
+                                위치 권한
                             </Text>
-                            <Text style={styles.systemStatusValue}>
-                                준비됨
+                            <Text
+                                style={[
+                                    styles.systemStatusValue,
+                                    permissionValueStyles[
+                                    locationPermission.tone
+                                    ],
+                                ]}
+                                testID="location-permission-status">
+                                {locationPermission.label}
                             </Text>
                         </View>
 
@@ -154,17 +287,32 @@ export function RiderHomeScreen() {
 
                         <View style={styles.systemStatusItem}>
                             <Text style={styles.systemStatusLabel}>
-                                배차 알림
+                                알림 권한
                             </Text>
-                            <Text style={styles.systemStatusValue}>
-                                허용됨
+                            <Text
+                                style={[
+                                    styles.systemStatusValue,
+                                    permissionValueStyles[
+                                    notificationPermission.tone
+                                    ],
+                                ]}
+                                testID="notification-permission-status">
+                                {notificationPermission.label}
                             </Text>
                         </View>
                     </View>
 
+                    {permissionMessage ? (
+                        <View style={styles.permissionNotice}>
+                            <Text style={styles.permissionNoticeText}>
+                                {permissionMessage}
+                            </Text>
+                        </View>
+                    ) : null}
+
                     <PrimaryButton
-                        disabled={isDutyStatusBusy}
-                        onPress={toggleDutyStatus}
+                        disabled={isDutyActionBusy}
+                        onPress={handleDutyToggle}
                         testID="duty-toggle-button"
                         title={dutyButtonTitle}
                     />
@@ -175,8 +323,8 @@ export function RiderHomeScreen() {
                         운행 전 확인
                     </Text>
                     <Text style={styles.noticeDescription}>
-                        위치 권한과 배터리 사용 설정을 확인하면 백그라운드에서도
-                        배차 상태를 안정적으로 유지할 수 있습니다.
+                        위치 권한과 알림 권한을 허용하면 운행 중 배차
+                        요청과 위치 상태를 안정적으로 확인할 수 있습니다.
                     </Text>
                 </View>
 
@@ -333,15 +481,34 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     systemStatusValue: {
-        color: colors.success,
         fontSize: 14,
         fontWeight: '700',
         marginTop: spacing.xs,
+    },
+    systemStatusGranted: {
+        color: colors.success,
+    },
+    systemStatusWarning: {
+        color: colors.warning,
+    },
+    systemStatusNeutral: {
+        color: colors.neutral,
     },
     divider: {
         backgroundColor: colors.border,
         height: 32,
         width: 1,
+    },
+    permissionNotice: {
+        backgroundColor: colors.warningSoft,
+        borderRadius: radius.sm,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+    },
+    permissionNoticeText: {
+        color: colors.warning,
+        fontSize: 13,
+        lineHeight: 19,
     },
     noticeCard: {
         backgroundColor: colors.surface,
@@ -367,3 +534,9 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
 });
+
+const permissionValueStyles = {
+    granted: styles.systemStatusGranted,
+    warning: styles.systemStatusWarning,
+    neutral: styles.systemStatusNeutral,
+};
