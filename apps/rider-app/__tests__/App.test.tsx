@@ -5,6 +5,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
 import { DUTY_STATUS } from '../src/features/duty-status/dutyStatus';
 import { dutyStatusStorage } from '../src/features/duty-status/dutyStatusStorage';
+import { riderForegroundService } from '../src/features/foreground-service/riderForegroundService';
 import {
   RIDER_PERMISSION_STATUS,
   type RiderPermissions,
@@ -27,11 +28,24 @@ jest.mock(
 );
 
 jest.mock(
+  '../src/features/foreground-service/riderForegroundService',
+  () => ({
+    riderForegroundService: {
+      start: jest.fn(),
+      stop: jest.fn(),
+    },
+  }),
+);
+
+jest.mock(
   '../src/features/permissions/useRiderPermissions',
 );
 
 const mockedDutyStatusStorage =
   jest.mocked(dutyStatusStorage);
+
+const mockedRiderForegroundService =
+  jest.mocked(riderForegroundService);
 
 const mockedUseRiderPermissions =
   jest.mocked(useRiderPermissions);
@@ -57,6 +71,9 @@ beforeEach(() => {
   );
 
   mockedDutyStatusStorage.set.mockResolvedValue();
+
+  mockedRiderForegroundService.start.mockResolvedValue();
+  mockedRiderForegroundService.stop.mockResolvedValue();
 
   refreshPermissions.mockResolvedValue(
     grantedPermissions,
@@ -119,7 +136,7 @@ function getRenderedText(
     });
 }
 
-test('저장된 운행 상태를 복원한다', async () => {
+test('저장된 운행 상태를 복원하고 서비스를 시작한다', async () => {
   mockedDutyStatusStorage.get.mockResolvedValue(
     DUTY_STATUS.onDuty,
   );
@@ -131,11 +148,15 @@ test('저장된 운행 상태를 복원한다', async () => {
     mockedDutyStatusStorage.get,
   ).toHaveBeenCalledTimes(1);
 
+  expect(
+    mockedRiderForegroundService.start,
+  ).toHaveBeenCalledTimes(1);
+
   expect(renderedText).toContain('운행 중');
   expect(renderedText).toContain('운행 종료');
 });
 
-test('권한이 허용된 상태에서 운행을 시작한다', async () => {
+test('권한이 허용된 상태에서 운행과 서비스를 시작한다', async () => {
   const renderer = await renderApp();
 
   const dutyButton = renderer.root.findByProps({
@@ -151,13 +172,17 @@ test('권한이 허용된 상태에서 운행을 시작한다', async () => {
   ).not.toHaveBeenCalled();
 
   expect(
+    mockedRiderForegroundService.start,
+  ).toHaveBeenCalledTimes(1);
+
+  expect(
     mockedDutyStatusStorage.set,
   ).toHaveBeenCalledWith(
     DUTY_STATUS.onDuty,
   );
 });
 
-test('권한 요청이 거부되면 운행 상태를 변경하지 않는다', async () => {
+test('권한 요청이 거부되면 운행과 서비스를 시작하지 않는다', async () => {
   requestRequiredPermissions.mockResolvedValue(false);
 
   mockedUseRiderPermissions.mockReturnValue({
@@ -186,11 +211,15 @@ test('권한 요청이 거부되면 운행 상태를 변경하지 않는다', as
   ).toHaveBeenCalledTimes(1);
 
   expect(
+    mockedRiderForegroundService.start,
+  ).not.toHaveBeenCalled();
+
+  expect(
     mockedDutyStatusStorage.set,
   ).not.toHaveBeenCalled();
 });
 
-test('권한 요청이 허용되면 운행을 시작한다', async () => {
+test('권한 요청이 허용되면 운행과 서비스를 시작한다', async () => {
   requestRequiredPermissions.mockResolvedValue(true);
 
   mockedUseRiderPermissions.mockReturnValue({
@@ -219,8 +248,43 @@ test('권한 요청이 허용되면 운행을 시작한다', async () => {
   ).toHaveBeenCalledTimes(1);
 
   expect(
+    mockedRiderForegroundService.start,
+  ).toHaveBeenCalledTimes(1);
+
+  expect(
     mockedDutyStatusStorage.set,
   ).toHaveBeenCalledWith(
     DUTY_STATUS.onDuty,
   );
+});
+
+test('운행을 종료하면 서비스와 저장 상태를 함께 종료한다', async () => {
+  mockedDutyStatusStorage.get.mockResolvedValue(
+    DUTY_STATUS.onDuty,
+  );
+
+  const renderer = await renderApp();
+
+  const dutyButton = renderer.root.findByProps({
+    testID: 'duty-toggle-button',
+  });
+
+  await ReactTestRenderer.act(async () => {
+    await dutyButton.props.onPress();
+  });
+
+  expect(
+    mockedRiderForegroundService.stop,
+  ).toHaveBeenCalledTimes(1);
+
+  expect(
+    mockedDutyStatusStorage.set,
+  ).toHaveBeenCalledWith(
+    DUTY_STATUS.offDuty,
+  );
+
+  const renderedText = getRenderedText(renderer);
+
+  expect(renderedText).toContain('운행 대기');
+  expect(renderedText).toContain('운행 시작');
 });

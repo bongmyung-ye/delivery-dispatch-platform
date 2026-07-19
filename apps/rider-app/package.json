@@ -35,6 +35,14 @@
     "react-test-renderer": "19.2.3",
     "typescript": "^5.8.3"
   },
+  "codegenConfig": {
+  "name": "RiderForegroundServiceSpec",
+  "type": "modules",
+  "jsSrcsDir": "specs",
+  "android": {
+    "javaPackageName": "com.bongmyungye.deliverydispatch.rider.foreground"
+  }
+},
   "engines": {
     "node": ">= 22.11.0"
   }

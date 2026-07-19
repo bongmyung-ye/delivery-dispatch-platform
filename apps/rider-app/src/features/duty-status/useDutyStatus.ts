@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useState,
+} from 'react';
 import {
     DEFAULT_DUTY_STATUS,
     DUTY_STATUS,
     type DutyStatus,
 } from './dutyStatus';
 import { dutyStatusStorage } from './dutyStatusStorage';
+import { riderForegroundService } from '../foreground-service/riderForegroundService';
 
 export function useDutyStatus() {
     const [status, setStatus] = useState<DutyStatus>(
@@ -18,12 +23,35 @@ export function useDutyStatus() {
 
         async function restoreDutyStatus() {
             try {
-                const storedStatus = await dutyStatusStorage.get();
+                const storedStatus =
+                    await dutyStatusStorage.get();
+
+                if (storedStatus === DUTY_STATUS.onDuty) {
+                    try {
+                        await riderForegroundService.start();
+                    } catch {
+                        await dutyStatusStorage
+                            .set(DUTY_STATUS.offDuty)
+                            .catch(() => undefined);
+
+                        if (isMounted) {
+                            setStatus(DUTY_STATUS.offDuty);
+                        }
+
+                        return;
+                    }
+                } else {
+                    await riderForegroundService.stop();
+                }
 
                 if (isMounted) {
                     setStatus(storedStatus);
                 }
             } catch {
+                await riderForegroundService
+                    .stop()
+                    .catch(() => undefined);
+
                 if (isMounted) {
                     setStatus(DEFAULT_DUTY_STATUS);
                 }
@@ -46,22 +74,53 @@ export function useDutyStatus() {
             return;
         }
 
-        const nextStatus =
-            status === DUTY_STATUS.onDuty
-                ? DUTY_STATUS.offDuty
-                : DUTY_STATUS.onDuty;
-
         setIsSaving(true);
 
         try {
-            await dutyStatusStorage.set(nextStatus);
-            setStatus(nextStatus);
+            if (status === DUTY_STATUS.onDuty) {
+                await riderForegroundService.stop();
+
+                try {
+                    await dutyStatusStorage.set(
+                        DUTY_STATUS.offDuty,
+                    );
+                } catch (error) {
+                    await riderForegroundService
+                        .start()
+                        .catch(() => undefined);
+
+                    throw error;
+                }
+
+                setStatus(DUTY_STATUS.offDuty);
+                return;
+            }
+
+            await riderForegroundService.start();
+
+            try {
+                await dutyStatusStorage.set(
+                    DUTY_STATUS.onDuty,
+                );
+            } catch (error) {
+                await riderForegroundService
+                    .stop()
+                    .catch(() => undefined);
+
+                throw error;
+            }
+
+            setStatus(DUTY_STATUS.onDuty);
         } catch {
-            return;
+            setStatus(status);
         } finally {
             setIsSaving(false);
         }
-    }, [isRestoring, isSaving, status]);
+    }, [
+        isRestoring,
+        isSaving,
+        status,
+    ]);
 
     return {
         isOnDuty: status === DUTY_STATUS.onDuty,

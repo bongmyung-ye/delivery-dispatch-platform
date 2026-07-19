@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Dispatch Rider</string>
+    <string name="rider_service_channel_name">운행 상태</string>
+<string name="rider_service_channel_description">기사 운행 상태를 표시합니다.</string>
+<string name="rider_service_notification_title">운행 중</string>
+<string name="rider_service_notification_text">주변 배차 요청을 기다리고 있습니다.</string>
 </resources>
