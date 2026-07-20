@@ -7,6 +7,11 @@ import { DUTY_STATUS } from '../src/features/duty-status/dutyStatus';
 import { dutyStatusStorage } from '../src/features/duty-status/dutyStatusStorage';
 import { riderForegroundService } from '../src/features/foreground-service/riderForegroundService';
 import {
+  RIDER_LOCATION_STATUS,
+  type RiderLocation,
+} from '../src/features/location/riderLocation';
+import { useRiderLocation } from '../src/features/location/useRiderLocation';
+import {
   RIDER_PERMISSION_STATUS,
   type RiderPermissions,
 } from '../src/features/permissions/riderPermissions';
@@ -15,6 +20,18 @@ import { useRiderPermissions } from '../src/features/permissions/useRiderPermiss
 jest.mock(
   'react-native-safe-area-context',
   () => mockSafeAreaContext,
+);
+
+jest.mock(
+  '../specs/NativeRiderForegroundService',
+  () => ({
+    __esModule: true,
+    default: {
+      startService: jest.fn(),
+      stopService: jest.fn(),
+      getLatestLocation: jest.fn(),
+    },
+  }),
 );
 
 jest.mock(
@@ -38,6 +55,13 @@ jest.mock(
 );
 
 jest.mock(
+  '../src/features/location/useRiderLocation',
+  () => ({
+    useRiderLocation: jest.fn(),
+  }),
+);
+
+jest.mock(
   '../src/features/permissions/useRiderPermissions',
 );
 
@@ -46,6 +70,9 @@ const mockedDutyStatusStorage =
 
 const mockedRiderForegroundService =
   jest.mocked(riderForegroundService);
+
+const mockedUseRiderLocation =
+  jest.mocked(useRiderLocation);
 
 const mockedUseRiderPermissions =
   jest.mocked(useRiderPermissions);
@@ -60,8 +87,17 @@ const deniedPermissions: RiderPermissions = {
   notifications: RIDER_PERMISSION_STATUS.denied,
 };
 
+const currentLocation: RiderLocation = {
+  latitude: 35.8562,
+  longitude: 128.5504,
+  accuracyMeters: 8.6,
+  speedMetersPerSecond: 5,
+  capturedAtMillis: 1784500000000,
+};
+
 const refreshPermissions = jest.fn();
 const requestRequiredPermissions = jest.fn();
+const refreshLocation = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -80,6 +116,7 @@ beforeEach(() => {
   );
 
   requestRequiredPermissions.mockResolvedValue(true);
+  refreshLocation.mockResolvedValue(null);
 
   mockedUseRiderPermissions.mockReturnValue({
     permissions: grantedPermissions,
@@ -89,6 +126,13 @@ beforeEach(() => {
     isRequesting: false,
     refreshPermissions,
     requestRequiredPermissions,
+  });
+
+  mockedUseRiderLocation.mockReturnValue({
+    location: null,
+    status: RIDER_LOCATION_STATUS.idle,
+    message: null,
+    refreshLocation,
   });
 });
 
@@ -287,4 +331,24 @@ test('운행을 종료하면 서비스와 저장 상태를 함께 종료한다',
 
   expect(renderedText).toContain('운행 대기');
   expect(renderedText).toContain('운행 시작');
+});
+
+test('운행 중 최신 GPS 상태를 표시한다', async () => {
+  mockedDutyStatusStorage.get.mockResolvedValue(
+    DUTY_STATUS.onDuty,
+  );
+
+  mockedUseRiderLocation.mockReturnValue({
+    location: currentLocation,
+    status: RIDER_LOCATION_STATUS.available,
+    message: null,
+    refreshLocation,
+  });
+
+  const renderer = await renderApp();
+  const renderedText = getRenderedText(renderer);
+
+  expect(renderedText).toContain('수집 중');
+  expect(renderedText).toContain('9m');
+  expect(renderedText).toContain('18km/h');
 });

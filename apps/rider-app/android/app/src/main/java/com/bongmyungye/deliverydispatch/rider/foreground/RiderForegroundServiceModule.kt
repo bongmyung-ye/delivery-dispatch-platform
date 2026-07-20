@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.bongmyungye.deliverydispatch.rider.location.RiderLocationStore
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 
@@ -47,7 +49,7 @@ class RiderForegroundServiceModule(
         try {
             val isStopped =
                 reactApplicationContext.stopService(
-                    RiderForegroundService.createStartIntent(
+                    RiderForegroundService.createStopIntent(
                         reactApplicationContext,
                     ),
                 )
@@ -62,6 +64,49 @@ class RiderForegroundServiceModule(
         }
     }
 
+    override fun getLatestLocation(promise: Promise) {
+        val location = RiderLocationStore.getLatest()
+
+        if (location == null) {
+            promise.resolve(null)
+            return
+        }
+
+        val result =
+            Arguments.createMap().apply {
+                putDouble(
+                    "latitude",
+                    location.latitude,
+                )
+                putDouble(
+                    "longitude",
+                    location.longitude,
+                )
+                putDouble(
+                    "accuracyMeters",
+                    location.accuracyMeters,
+                )
+
+                if (
+                    location.speedMetersPerSecond == null
+                ) {
+                    putNull("speedMetersPerSecond")
+                } else {
+                    putDouble(
+                        "speedMetersPerSecond",
+                        location.speedMetersPerSecond,
+                    )
+                }
+
+                putDouble(
+                    "capturedAtMillis",
+                    location.capturedAtMillis.toDouble(),
+                )
+            }
+
+        promise.resolve(result)
+    }
+
     private fun hasRequiredPermissions(): Boolean {
         val hasFineLocation =
             ContextCompat.checkSelfPermission(
@@ -70,7 +115,8 @@ class RiderForegroundServiceModule(
             ) == PackageManager.PERMISSION_GRANTED
 
         val hasNotifications =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(
                     reactApplicationContext,
                     Manifest.permission.POST_NOTIFICATIONS,
@@ -80,7 +126,8 @@ class RiderForegroundServiceModule(
     }
 
     companion object {
-        const val NAME = "NativeRiderForegroundService"
+        const val NAME =
+            "NativeRiderForegroundService"
 
         private const val ERROR_MISSING_PERMISSIONS =
             "E_RIDER_SERVICE_PERMISSION"

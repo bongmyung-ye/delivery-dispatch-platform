@@ -17,12 +17,27 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.bongmyungye.deliverydispatch.rider.MainActivity
 import com.bongmyungye.deliverydispatch.rider.R
+import com.bongmyungye.deliverydispatch.rider.location.RiderLocationTracker
 
 class RiderForegroundService : Service() {
 
+    private lateinit var locationTracker: RiderLocationTracker
+
     override fun onCreate() {
         super.onCreate()
+
         createNotificationChannel()
+
+        locationTracker =
+            RiderLocationTracker(this) { exception ->
+                Log.e(
+                    TAG,
+                    "Location tracking stopped unexpectedly.",
+                    exception,
+                )
+
+                stopForegroundService()
+            }
     }
 
     override fun onStartCommand(
@@ -36,7 +51,11 @@ class RiderForegroundService : Service() {
         }
 
         if (!hasRequiredPermissions()) {
-            Log.w(TAG, "Foreground service permissions are not granted.")
+            Log.w(
+                TAG,
+                "Foreground service permissions are not granted.",
+            )
+
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -46,17 +65,36 @@ class RiderForegroundService : Service() {
                 this,
                 NOTIFICATION_ID,
                 createNotification(),
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (
+                    Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.R
+                ) {
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
                 } else {
                     0
                 },
             )
 
+            if (!locationTracker.start()) {
+                Log.w(
+                    TAG,
+                    "Location tracking could not be started.",
+                )
+
+                stopForegroundService()
+                return START_NOT_STICKY
+            }
+
             START_NOT_STICKY
         } catch (exception: RuntimeException) {
-            Log.e(TAG, "Failed to start rider foreground service.", exception)
-            stopSelf(startId)
+            Log.e(
+                TAG,
+                "Failed to start rider foreground service.",
+                exception,
+            )
+
+            locationTracker.stop()
+            stopForegroundService()
             START_NOT_STICKY
         }
     }
@@ -64,7 +102,9 @@ class RiderForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        locationTracker.stop()
         stopForeground(STOP_FOREGROUND_REMOVE)
+
         super.onDestroy()
     }
 
@@ -76,7 +116,8 @@ class RiderForegroundService : Service() {
             ) == PackageManager.PERMISSION_GRANTED
 
         val hasNotifications =
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS,
@@ -86,13 +127,22 @@ class RiderForegroundService : Service() {
     }
 
     private fun createNotification() =
-        NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_rider_location)
+        NotificationCompat.Builder(
+            this,
+            NOTIFICATION_CHANNEL_ID,
+        )
+            .setSmallIcon(
+                R.drawable.ic_stat_rider_location,
+            )
             .setContentTitle(
-                getString(R.string.rider_service_notification_title),
+                getString(
+                    R.string.rider_service_notification_title,
+                ),
             )
             .setContentText(
-                getString(R.string.rider_service_notification_text),
+                getString(
+                    R.string.rider_service_notification_text,
+                ),
             )
             .setContentIntent(createContentIntent())
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -119,38 +169,55 @@ class RiderForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        if (
+            Build.VERSION.SDK_INT <
+            Build.VERSION_CODES.O
+        ) {
             return
         }
 
         val channel =
             NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
-                getString(R.string.rider_service_channel_name),
+                getString(
+                    R.string.rider_service_channel_name,
+                ),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
                 description =
                     getString(
-                        R.string.rider_service_channel_description,
+                        R.string
+                            .rider_service_channel_description,
                     )
+
                 setShowBadge(false)
             }
 
-        getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(channel)
+        getSystemService(
+            NotificationManager::class.java,
+        ).createNotificationChannel(channel)
     }
 
     private fun stopForegroundService() {
+        if (::locationTracker.isInitialized) {
+            locationTracker.stop()
+        }
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     companion object {
-        private const val TAG = "RiderForegroundService"
+        private const val TAG =
+            "RiderForegroundService"
+
         private const val NOTIFICATION_CHANNEL_ID =
             "rider_duty_status"
+
         private const val NOTIFICATION_ID = 41001
-        private const val CONTENT_INTENT_REQUEST_CODE = 41002
+
+        private const val CONTENT_INTENT_REQUEST_CODE =
+            41002
 
         private const val ACTION_START =
             "com.bongmyungye.deliverydispatch.rider.action.START_DUTY_SERVICE"
