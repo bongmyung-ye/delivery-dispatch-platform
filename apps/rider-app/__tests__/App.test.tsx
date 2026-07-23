@@ -62,6 +62,15 @@ jest.mock(
 );
 
 jest.mock(
+  '../src/features/location-upload/useLocationUpload',
+  () => ({
+    useLocationUpload: jest.fn(() => ({
+      processQueue: jest.fn(),
+    })),
+  }),
+);
+
+jest.mock(
   '../src/features/permissions/useRiderPermissions',
 );
 

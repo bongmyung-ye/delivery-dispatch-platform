@@ -22,6 +22,9 @@ import {
 } from '../features/permissions/riderPermissions';
 import { useRiderPermissions } from '../features/permissions/useRiderPermissions';
 import { colors, radius, spacing } from '../theme/tokens';
+import {
+    useLocationUpload,
+} from '../features/location-upload/useLocationUpload';
 
 type IndicatorTone =
     | 'granted'
@@ -177,6 +180,11 @@ export function RiderHomeScreen() {
         status: locationStatus,
         message: locationMessage,
     } = useRiderLocation(isOnDuty);
+
+    useLocationUpload({
+        isOnDuty,
+        location,
+    });
 
     const locationPermission =
         getLocationPermissionIndicator(
